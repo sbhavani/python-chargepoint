@@ -13,6 +13,7 @@ ChargePoint's app and web UI don't let you stop a charging session on a schedule
 | Feature | Location | Notes |
 |---|---|---|
 | `chargepoint stop` | `__main__.py:stop` | Stops active session without needing session ID |
+| `chargepoint session last` | `__main__.py:session_last` + `client.py:get_charging_sessions` | Most recent session (uses driver-bff sessions list API) |
 | `chargepoint session start <device_id>` | `__main__.py:session_start` | Start on any station |
 | `chargepoint session stop <session_id>` | `__main__.py:session_stop` | Stop by session ID |
 | `chargepoint session get <session_id>` | `__main__.py:session_get` | Session details |
@@ -29,7 +30,6 @@ ChargePoint's app and web UI don't let you stop a charging session on a schedule
 | Feature | Status |
 |---|---|
 | Top-level `schedule` subcommand | Currently `charger schedule / set-schedule / disable-schedule` |
-| `chargepoint session last` | Not implemented |
 | `chargepoint start <device_id>` shortcut | Currently `session start` |
 | `--connector-tesla-l2` filter | API supports `connector_l2_tesla` in MapFilter but CLI flag missing |
 | `--connector-tesla-dc` filter | API supports IONNA but CLI flag missing |
