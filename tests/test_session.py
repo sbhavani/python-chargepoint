@@ -7,7 +7,7 @@ import pytest
 from python_chargepoint import ChargePoint
 from python_chargepoint.global_config import GlobalConfiguration
 from python_chargepoint.session import ChargingSession, _send_command
-from python_chargepoint.exceptions import CommunicationError
+from python_chargepoint.exceptions import CommunicationError, APIError
 
 
 def _add_start_function_responses(
@@ -82,19 +82,49 @@ async def test_stop_session_ack_failure(
     global_config: GlobalConfiguration,
     charging_session: ChargingSession,
 ):
+    """stop() should raise CommunicationError when the ack endpoint returns a non-200 status."""
     aioresponses.post(
         f"{global_config.endpoints.accounts_endpoint}v1/driver/station/stopSession",
         status=200,
         payload={"ackId": 1},
     )
+    # The ack endpoint returns 403 on every poll attempt (all 20 retries fail)
     aioresponses.post(
         f"{global_config.endpoints.accounts_endpoint}v1/driver/station/session/ack",
         status=403,
         payload={"error": "failed to stop session"},
     )
 
-    with pytest.raises(CommunicationError):
+    with pytest.raises(CommunicationError) as exc:
         await charging_session.stop()
+
+    # _raise_for_status formats the message as "FORBIDDEN: [POST] <url>"
+    assert "FORBIDDEN" in str(exc.value)
+    assert exc.value.response.status == 403
+
+
+async def test_stop_session_ack_non_json(
+    aioresponses,
+    global_config: GlobalConfiguration,
+    charging_session: ChargingSession,
+):
+    """stop() should handle non-JSON ack responses gracefully (except Exception: pass)."""
+    aioresponses.post(
+        f"{global_config.endpoints.accounts_endpoint}v1/driver/station/stopSession",
+        status=200,
+        payload={"ackId": 1},
+    )
+    # Return a plain-text 403 — json() will raise, triggering except Exception: pass
+    aioresponses.post(
+        f"{global_config.endpoints.accounts_endpoint}v1/driver/station/session/ack",
+        status=403,
+        body="Internal Server Error",
+    )
+
+    with pytest.raises(CommunicationError) as exc:
+        await charging_session.stop()
+
+    assert exc.value.response.status == 403
 
 
 async def test_start_session(
@@ -184,3 +214,32 @@ async def test_get_charging_session_no_pricing_spec_id(
 
     session = await authenticated_client.get_charging_session(session_id=1)
     assert session.pricing_spec_id == 0
+
+
+async def test_start_session_no_active_charging(
+    aioresponses,
+    authenticated_client: ChargePoint,
+    global_config: GlobalConfiguration,
+):
+    """ChargingSession.start should raise APIError when no session is active."""
+    aioresponses.post(
+        f"{global_config.endpoints.accounts_endpoint}v1/driver/station/startsession",
+        status=200,
+        payload={"ackId": 1},
+    )
+    aioresponses.post(
+        f"{global_config.endpoints.accounts_endpoint}v1/driver/station/session/ack",
+        status=200,
+        payload={"sessionId": 12345},
+    )
+    # get_user_charging_status returns None when the API response has no user_status
+    aioresponses.post(
+        authenticated_client.global_config.endpoints.mapcache_endpoint / "v2",
+        status=200,
+        payload={"user_status": None},
+    )
+
+    with pytest.raises(APIError) as exc:
+        await ChargingSession.start(device_id=1, client=authenticated_client)
+
+    assert "No active charging session found" in str(exc.value)

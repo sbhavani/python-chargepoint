@@ -800,3 +800,206 @@ async def test_start_session(
     new = await authenticated_client.start_charging_session(device_id=1)
     assert new.session_id == 1
     assert "Successfully confirmed start command." in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: get_charging_sessions, close, session property
+# ---------------------------------------------------------------------------
+
+
+async def test_client_get_charging_sessions(
+    aioresponses, authenticated_client: ChargePoint
+):
+    """get_charging_sessions should parse the sessions list and populate session objects."""
+    sessions_payload = {
+        "sessions": [
+            {
+                "sessionId": 11111,
+                "deviceId": 99990001,
+                "deviceName": "Home Flex",
+                "chargingState": "done",
+                "startTimeUTC": 1743000000000,
+                "energyKwh": 42.5,
+                "milesAdded": 142.0,
+                "totalAmount": 12.34,
+                "currencyIsoCode": "USD",
+            },
+            {
+                "sessionId": 22222,
+                "deviceId": 99990002,
+                "deviceName": "Work Charger",
+                "chargingState": "in_progress",
+                "startTimeUTC": 1743100000000,
+                "energyKwh": 10.2,
+                "milesAdded": 34.0,
+                "totalAmount": 2.88,
+                "currencyIsoCode": "USD",
+            },
+        ]
+    }
+    aioresponses.post(
+        authenticated_client.global_config.endpoints.internal_api_gateway_endpoint
+        / "driver-bff/v1/sessions",
+        status=200,
+        payload=sessions_payload,
+    )
+
+    sessions = await authenticated_client.get_charging_sessions(limit=5)
+
+    assert len(sessions) == 2
+    assert sessions[0].session_id == 11111
+    assert sessions[0].device_id == 99990001
+    assert sessions[0].device_name == "Home Flex"
+    assert sessions[0].charging_state == "done"
+    assert sessions[0].energy_kwh == 42.5
+    assert sessions[0].miles_added == 142.0
+    assert sessions[0].total_amount == 12.34
+    assert sessions[0].currency_iso_code == "USD"
+    assert sessions[0].start_time is not None
+
+    assert sessions[1].session_id == 22222
+    assert sessions[1].charging_state == "in_progress"
+
+
+async def test_client_get_charging_sessions_empty(
+    aioresponses, authenticated_client: ChargePoint
+):
+    """get_charging_sessions should return an empty list when no sessions exist."""
+    aioresponses.post(
+        authenticated_client.global_config.endpoints.internal_api_gateway_endpoint
+        / "driver-bff/v1/sessions",
+        status=200,
+        payload={"sessions": []},
+    )
+
+    sessions = await authenticated_client.get_charging_sessions(limit=5)
+    assert sessions == []
+
+
+async def test_client_get_charging_sessions_failure(
+    aioresponses, authenticated_client: ChargePoint
+):
+    """get_charging_sessions should raise CommunicationError on HTTP error."""
+    aioresponses.post(
+        authenticated_client.global_config.endpoints.internal_api_gateway_endpoint
+        / "driver-bff/v1/sessions",
+        status=500,
+    )
+
+    with pytest.raises(CommunicationError) as exc:
+        await authenticated_client.get_charging_sessions(limit=5)
+
+    assert exc.value.response.status == 500
+
+
+async def test_client_close(aioresponses, authenticated_client: ChargePoint):
+    """close() should close the session when the client owns it."""
+    # The authenticated_client fixture creates its own session (owns_session=True)
+    # close() should not raise
+    await authenticated_client.close()
+
+
+async def test_client_session_property(aioresponses, authenticated_client: ChargePoint):
+    """session property should return the underlying aiohttp ClientSession."""
+    sess = authenticated_client.session
+    assert sess is not None
+    # After close, accessing session is undefined behaviour but we just test the property
+    assert hasattr(sess, "close")
+
+
+async def test_client_pass_session_to_constructor(aioresponses, global_config_json):
+    """ChargePoint.__init__ should use the passed session instead of creating one."""
+    import aiohttp
+
+    aioresponses.post(DISCOVERY_API, status=200, payload=global_config_json)
+
+    external_session = aiohttp.ClientSession()
+    try:
+        aioresponses.get(
+            "https://account.chargepoint.com/account/v1/driver/profile/user",
+            status=200,
+            payload={
+                "user": {
+                    "email": "test@pytest.com",
+                    "evatarUrl": "https://pytest.com",
+                    "familyName": "Test",
+                    "fullName": "Test User",
+                    "givenName": "Test",
+                    "phone": "1234567890",
+                    "phoneCountryId": 1,
+                    "userId": 1,
+                    "username": "test",
+                },
+                "accountBalance": {
+                    "accountNumber": "1",
+                    "accountState": "test",
+                    "balance": {"amount": "0.0", "currency": "USD"},
+                },
+            },
+        )
+
+        client = await ChargePoint.create(
+            "test",
+            coulomb_token="rAnDomBaSe64EnCodEdDaTaToKeNrAnDomBaSe64EnCodEdD#D???????#RNA-US",
+            session=external_session,
+        )
+
+        # The client should use the passed session, not create a new one
+        assert client.session is external_session
+        await client.close()
+        # External session should NOT be closed by client.close() since it doesn't own it
+        # (It was already open; we just check the client doesn't crash)
+    finally:
+        # Clean up: external session is still open here since client doesn't own it
+        await external_session.close()
+
+
+async def test_client_set_coulomb_token_empty():
+    """_set_coulomb_token should raise ValueError when given an empty token."""
+    client = ChargePoint(username="test")
+    with pytest.raises(ValueError, match="empty session token"):
+        client._set_coulomb_token("")
+
+
+async def test_login_password_403_non_json(
+    aioresponses, global_config_json: dict, global_config: GlobalConfiguration
+):
+    """login_with_password should handle a 403 with non-JSON body gracefully.
+
+    When response.json() raises, the 403 still raises LoginError via
+    CommunicationError wrapping.
+    """
+    aioresponses.post(DISCOVERY_API, status=200, payload=global_config_json)
+    aioresponses.post(
+        f"{global_config.endpoints.sso_endpoint}v1/user/login",
+        status=403,
+        body="Service Unavailable",
+    )
+
+    client = await ChargePoint.create("test")
+    with pytest.raises(LoginError) as exc:
+        await client.login_with_password("demo")
+
+    # The except Exception: pass was hit (non-JSON body), then LoginError was raised
+    assert "Failed to authenticate" in str(exc.value)
+
+
+async def test_request_403_non_json(
+    aioresponses, authenticated_client: ChargePoint
+):
+    """_request should handle a 403 with non-JSON body gracefully (Datadome try/except)."""
+    from python_chargepoint.global_config import ZoomBounds
+
+    aioresponses.post(
+        authenticated_client.global_config.endpoints.mapcache_endpoint / "v2",
+        status=403,
+        body="Gateway Timeout",
+    )
+    bounds = ZoomBounds(sw_lat=0.0, sw_lon=0.0, ne_lat=1.0, ne_lon=1.0)
+
+    with pytest.raises(CommunicationError) as exc:
+        await authenticated_client.get_nearby_stations(bounds)
+
+    # Should fall through to FORBIDDEN error (except Exception: pass is hit)
+    assert "FORBIDDEN" in str(exc.value)
+
