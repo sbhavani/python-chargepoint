@@ -5,6 +5,8 @@ import os
 import sys
 from functools import wraps
 from getpass import getpass
+from pathlib import Path
+from typing import Optional
 
 import click
 
@@ -12,6 +14,39 @@ from .client import ChargePoint
 from .constants import _LOGGER
 from .exceptions import CommunicationError, InvalidSession, LoginError
 from .types import MapFilter, ZoomBounds
+
+try:
+    import tomllib as toml
+except ImportError:
+    import tomli as toml  # type: ignore[no-redef]
+
+
+# ---------------------------------------------------------------------------
+# Config file
+# ---------------------------------------------------------------------------
+
+DEFAULT_CONFIG_PATH = Path.home() / ".config" / "chargepoint" / "credentials.toml"
+
+
+def _load_config(config_path: Optional[Path]) -> dict:
+    """Load credentials from a TOML config file.
+
+    Returns an empty dict if the file doesn't exist or is invalid.
+    """
+    if config_path is None:
+        config_path = DEFAULT_CONFIG_PATH
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path, "rb") as f:
+            return toml.load(f)
+    except Exception:
+        return {}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -38,18 +73,40 @@ def _setup_logging(debug: bool) -> None:
     _LOGGER.addHandler(handler)
 
 
-async def _make_client(debug: bool) -> ChargePoint:
-    """Build an authenticated ChargePoint client from env vars / prompts.
+async def _make_client(
+    debug: bool, config_path: Optional[Path], profile: str
+) -> ChargePoint:
+    """Build an authenticated ChargePoint client from config file / env vars / prompts.
 
     Auth priority:
-      1. CP_COULOMB_TOKEN  — long-lived session token
-      2. CP_SSO_JWT        — SSO JWT, exchanged for a session token
-      3. Password prompt   — falls back to interactive password login
+      1. Config file (profile or default) — username + coulomb_token
+      2. Environment variables — CP_USERNAME, CP_COULOMB_TOKEN, CP_SSO_JWT
+      3. Password prompt — falls back to interactive login
     """
     _setup_logging(debug)
-    username = os.environ.get("CP_USERNAME") or click.prompt("ChargePoint Username")
-    coulomb_token = os.environ.get("CP_COULOMB_TOKEN", "")
-    sso_jwt = os.environ.get("CP_SSO_JWT", "")
+
+    # 1. Try config file
+    username: str = ""
+    coulomb_token: str = ""
+    sso_jwt: str = ""
+
+    if config_path is None:
+        config_path = DEFAULT_CONFIG_PATH
+
+    config_data = _load_config(config_path)
+    if config_data:
+        profile_data = config_data.get(profile) or config_data.get("default", {})
+        username = profile_data.get("username", "")
+        coulomb_token = profile_data.get("coulomb_token", "")
+        sso_jwt = profile_data.get("sso_jwt", "")
+
+    # 2. Fall back to environment variables
+    username = username or os.environ.get("CP_USERNAME", "")
+    coulomb_token = coulomb_token or os.environ.get("CP_COULOMB_TOKEN", "")
+    sso_jwt = sso_jwt or os.environ.get("CP_SSO_JWT", "")
+
+    if not username:
+        username = click.prompt("ChargePoint Username")
 
     try:
         client = await ChargePoint.create(username, coulomb_token=coulomb_token)
@@ -82,12 +139,25 @@ def _dump_json(obj) -> None:
 @click.group()
 @click.option("--debug", is_flag=True, help="Enable debug logging.")
 @click.option("--json", "as_json", is_flag=True, help="Output raw JSON.")
+@click.option(
+    "--profile",
+    default="default",
+    help='Credential profile to use (default: "default").',
+)
+@click.option(
+    "--config",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Path to credentials config file (default: ~/.config/chargepoint/credentials.toml).",
+)
 @click.pass_context
-def cli(ctx, debug: bool, as_json: bool) -> None:
+def cli(ctx, debug: bool, as_json: bool, profile: str, config: Path) -> None:
     """ChargePoint command-line interface."""
     ctx.ensure_object(dict)
     ctx.obj["debug"] = debug
     ctx.obj["as_json"] = as_json
+    ctx.obj["profile"] = profile
+    ctx.obj["config"] = config
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +170,7 @@ def cli(ctx, debug: bool, as_json: bool) -> None:
 @async_cmd
 async def account(ctx) -> None:
     """Show account information and balance."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         acct = await client.get_account()
         if ctx.obj["as_json"]:
@@ -130,7 +200,7 @@ async def account(ctx) -> None:
 @async_cmd
 async def vehicles(ctx) -> None:
     """List registered electric vehicles."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         evs = await client.get_vehicles()
         if ctx.obj["as_json"]:
@@ -162,7 +232,7 @@ async def vehicles(ctx) -> None:
 @async_cmd
 async def charging_status(ctx) -> None:
     """Show current charging session status."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         status = await client.get_user_charging_status()
         if status is None:
@@ -193,7 +263,7 @@ async def charging_status(ctx) -> None:
 @async_cmd
 async def stop(ctx) -> None:
     """Stop the currently active charging session."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         status = await client.get_user_charging_status()
         if status is None:
@@ -220,7 +290,7 @@ async def stop(ctx) -> None:
 @async_cmd
 async def station(ctx, device_id: int) -> None:
     """Show detailed information about a charging station."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         info = await client.get_station(device_id)
         if ctx.obj["as_json"]:
@@ -304,7 +374,7 @@ async def nearby(
     free_only: bool,
 ) -> None:
     """List charging stations within a bounding box."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         bounds = ZoomBounds(sw_lat=sw_lat, sw_lon=sw_lon, ne_lat=ne_lat, ne_lon=ne_lon)
         station_filter = None
@@ -379,7 +449,7 @@ def charger() -> None:
 @async_cmd
 async def charger_list(ctx) -> None:
     """List registered home charger IDs."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         charger_ids = await client.get_home_chargers()
         if ctx.obj["as_json"]:
@@ -403,7 +473,7 @@ async def charger_list(ctx) -> None:
 @async_cmd
 async def charger_status(ctx, charger_id: int) -> None:
     """Show home charger status and amperage settings."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         status = await client.get_home_charger_status(charger_id)
         if ctx.obj["as_json"]:
@@ -431,7 +501,7 @@ async def charger_status(ctx, charger_id: int) -> None:
 @async_cmd
 async def charger_tech_info(ctx, charger_id: int) -> None:
     """Show home charger technical information."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         info = await client.get_home_charger_technical_info(charger_id)
         if ctx.obj["as_json"]:
@@ -464,7 +534,7 @@ async def charger_tech_info(ctx, charger_id: int) -> None:
 @async_cmd
 async def charger_config(ctx, charger_id: int) -> None:
     """Show home charger configuration."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         config = await client.get_home_charger_config(charger_id)
         if ctx.obj["as_json"]:
@@ -497,7 +567,7 @@ async def charger_config(ctx, charger_id: int) -> None:
 @async_cmd
 async def charger_set_amperage(ctx, charger_id: int, amps: int) -> None:
     """Set the charge amperage limit for a home charger."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         await client.set_amperage_limit(charger_id, amps)
         click.echo(f"Amperage limit set to {amps} A.")
@@ -515,7 +585,7 @@ async def charger_set_amperage(ctx, charger_id: int, amps: int) -> None:
 @async_cmd
 async def charger_set_led(ctx, charger_id: int, level: int) -> None:
     """Set LED brightness level (0=off, 1=20%, 2=40%, 3=60%, 4=80%, 5=100%)."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         await client.set_led_brightness(charger_id, level)
         labels = {0: "off", 1: "20%", 2: "40%", 3: "60%", 4: "80%", 5: "100%"}
@@ -534,7 +604,7 @@ async def charger_set_led(ctx, charger_id: int, level: int) -> None:
 @async_cmd
 async def charger_restart(ctx, charger_id: int) -> None:
     """Send a restart command to a home charger."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         await client.restart_home_charger(charger_id)
         click.echo("Restart command sent.")
@@ -551,7 +621,7 @@ async def charger_restart(ctx, charger_id: int) -> None:
 @async_cmd
 async def charger_schedule(ctx, charger_id: int) -> None:
     """Show the charging schedule for a home charger."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         schedule = await client.get_home_charger_schedule(charger_id)
         if ctx.obj["as_json"]:
@@ -610,7 +680,7 @@ async def charger_set_schedule(
     weekend_end: str,
 ) -> None:
     """Set the charging schedule for a home charger."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         schedule = await client.set_home_charger_schedule(
             charger_id, weekday_start, weekday_end, weekend_start, weekend_end
@@ -640,7 +710,7 @@ async def charger_set_schedule(
 @async_cmd
 async def charger_disable_schedule(ctx, charger_id: int) -> None:
     """Disable the charging schedule for a home charger."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         schedule = await client.disable_home_charger_schedule(charger_id)
         if ctx.obj["as_json"]:
@@ -671,7 +741,7 @@ def session() -> None:
 @async_cmd
 async def session_get(ctx, session_id: int) -> None:
     """Show details of a charging session."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         s = await client.get_charging_session(session_id)
         if ctx.obj["as_json"]:
@@ -706,7 +776,7 @@ async def session_get(ctx, session_id: int) -> None:
 @async_cmd
 async def session_start(ctx, device_id: int) -> None:
     """Start a charging session on a device."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         s = await client.start_charging_session(device_id=device_id)
         if ctx.obj["as_json"]:
@@ -728,7 +798,7 @@ async def session_start(ctx, device_id: int) -> None:
 @async_cmd
 async def session_stop(ctx, session_id: int) -> None:
     """Stop an active charging session."""
-    client = await _make_client(ctx.obj["debug"])
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
     try:
         s = await client.get_charging_session(session_id)
         await s.stop()
