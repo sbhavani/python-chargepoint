@@ -791,6 +791,44 @@ async def session_start(ctx, device_id: int) -> None:
         await client.close()
 
 
+@session.command("last")
+@click.pass_context
+@async_cmd
+async def session_last(ctx) -> None:
+    """Show the most recent charging session."""
+    client = await _make_client(ctx.obj["debug"], ctx.obj["config"], ctx.obj["profile"])
+    try:
+        sessions = await client.get_charging_sessions(limit=1)
+        if not sessions:
+            click.echo("No charging sessions found.")
+            return
+        s = sessions[0]
+        if ctx.obj["as_json"]:
+            _dump_json(s)
+        else:
+            click.echo(f"Session:   {s.session_id}")
+            click.echo(f"Device:    {s.device_id} — {s.device_name}")
+            click.echo(f"State:     {s.charging_state}")
+            started = (
+                s.start_time.strftime("%Y-%m-%d %H:%M %Z") if s.start_time else "—"
+            )
+            click.echo(f"Started:   {started}")
+            click.echo(f"Energy:    {s.energy_kwh:.3f} kWh")
+            click.echo(f"Power:     {s.power_kw:.1f} kW")
+            click.echo(f"Miles:     +{s.miles_added:.1f} mi")
+            click.echo(f"Cost:      {s.total_amount} {s.currency_iso_code}")
+            click.echo(f"Location:  {s.address}, {s.city}, {s.state_name}")
+            if s.vehicle_info:
+                click.echo(
+                    f"Vehicle:   {s.vehicle_info.year} {s.vehicle_info.make} {s.vehicle_info.model}"
+                )
+    except CommunicationError as e:
+        click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+    finally:
+        await client.close()
+
+
 @session.command("stop")
 @click.argument("session_id", type=int)
 @click.confirmation_option(prompt="Stop this charging session?")

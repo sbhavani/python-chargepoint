@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from datetime import datetime, timezone
 from functools import wraps
 from importlib.metadata import version, PackageNotFoundError
+from typing import List, Optional
 from urllib.parse import unquote
 from http.cookies import SimpleCookie
 
@@ -475,6 +476,50 @@ class ChargePoint:
         session._client = self
         await session.async_refresh()
         return session
+
+    @_require_login
+    async def get_charging_sessions(self, limit: int = 10) -> List[ChargingSession]:
+        """Return the user's most recent charging sessions.
+
+        The API returns sessions newest-first. We fetch the first page and
+        return up to `limit` sessions, newest first.
+        """
+        _LOGGER.debug("Fetching recent charging sessions (limit=%d)", limit)
+        response = await self._request(
+            "POST",
+            self._global_config.endpoints.internal_api_gateway_endpoint
+            / "driver-bff/v1/sessions",
+            json={"page": 1, "limit": limit},
+        )
+
+        if response.status != 200:
+            await response.release()
+            raise CommunicationError(
+                response=response, message="Failed to retrieve charging sessions."
+            )
+
+        data = await response.json()
+        sessions_data = data.get("sessions", [])
+        sessions = []
+        for s in sessions_data:
+            sess = ChargingSession(session_id=s["sessionId"])
+            sess._client = self
+            # Populate from the list response (avoids an extra API call per session)
+            sess.device_id = s.get("deviceId", 0)
+            sess.device_name = s.get("deviceName", "")
+            sess.charging_state = s.get("chargingState", "")
+            sess.start_time = (
+                datetime.fromtimestamp(s["startTimeUTC"] / 1000, tz=timezone.utc)
+                if s.get("startTimeUTC")
+                else None
+            )
+            sess.energy_kwh = s.get("energyKwh", 0.0)
+            sess.miles_added = s.get("milesAdded", 0.0)
+            sess.total_amount = s.get("totalAmount", 0.0)
+            sess.currency_iso_code = s.get("currencyIsoCode", "")
+            sessions.append(sess)
+
+        return sessions
 
     @_require_login
     async def start_charging_session(self, device_id: int) -> ChargingSession:
