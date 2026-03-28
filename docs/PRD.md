@@ -20,14 +20,14 @@ ChargePoint's app and web UI don't let you stop a charging session on a schedule
 | `chargepoint charger set-schedule` | `__main__.py:charger_set_schedule` | Set TOU schedule |
 | `chargepoint charger disable-schedule` | `__main__.py:charger_disable_schedule` | Disable schedule |
 | All home charger commands | `charger` subgroup | list, status, tech-info, config, set-amperage, set-led, restart |
+| Credentials config file | `__main__.py:_load_config` | TOML at `~/.config/chargepoint/credentials.toml` |
+| `--profile` / `--config` global flags | `cli()` | |
 | All station/account/vehicle commands | `__main__.py` | Pre-existing |
 
 ### Not Done
 
 | Feature | Status |
 |---|---|
-| Credentials config file | Not implemented — uses env vars only |
-| `--profile` / `--config` global flags | Not implemented |
 | Top-level `schedule` subcommand | Currently `charger schedule / set-schedule / disable-schedule` |
 | `chargepoint session last` | Not implemented |
 | `chargepoint start <device_id>` shortcut | Currently `session start` |

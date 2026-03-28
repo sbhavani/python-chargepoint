@@ -356,10 +356,11 @@ chargepoint [--debug] [--json] [--profile <name>] [--config <path>] <command>
 ### Commands
 
 ```bash
-# Quick actions (no ID lookup needed)
-chargepoint stop                 # Stop the currently active session
-chargepoint start <device_id>     # Start charging on a station
-chargepoint session last         # Show the most recent session
+# Quick actions
+chargepoint stop                              # Stop the currently active session
+chargepoint session start <device_id>         # Start charging on a station
+chargepoint session stop <session_id>         # Stop by session ID
+chargepoint session get <session_id>          # Show session details
 
 # Account
 chargepoint account
@@ -371,10 +372,9 @@ chargepoint charging-status
 # Station info
 chargepoint station <device_id>
 
-# Nearby stations (Tesla-compatible filters)
+# Nearby stations
 chargepoint nearby --sw-lat 30.37 --sw-lon -97.66 --ne-lat 30.40 --ne-lon -97.64 \
     [--connector-l2] [--connector-combo] [--connector-chademo] [--connector-tesla] \
-    [--connector-tesla-l2] [--connector-tesla-dc] \
     [--dc-fast] [--available-only] [--free-only]
 
 # Home charger
@@ -386,32 +386,26 @@ chargepoint charger set-amperage <charger_id> <amps>
 chargepoint charger set-led <charger_id> <level>   # 0=off 1=20% 2=40% 3=60% 4=80% 5=100%
 chargepoint charger restart <charger_id>
 
-# Schedule management
-chargepoint schedule show <charger_id>
-chargepoint schedule set <charger_id> \
+# Schedule management (via home charger)
+chargepoint charger schedule <charger_id>         # Show current schedule
+chargepoint charger set-schedule <charger_id> \
     --weekday-start 23:00 --weekday-end 07:00 \
     --weekend-start 19:00 --weekend-end 15:00
-chargepoint schedule disable <charger_id>
-
-# Sessions
-chargepoint session get <session_id>
-chargepoint session start <device_id>
-chargepoint session stop <session_id>
+chargepoint charger disable-schedule <charger_id>
 ```
 
 ### Tesla Support
 
-The CLI includes filters and shortcuts optimized for Tesla vehicles:
+The `nearby` command supports Tesla-specific connector filters via the underlying API:
 
 | Filter | Description |
 |---|---|
 | `--connector-tesla` | Tesla proprietary connector |
-| `--connector-tesla-l2` | Tesla Level 2 (NACS) — most non-Tesla EVs use this |
-| `--connector-tesla-dc` | Tesla Supercharger DC (IONNA network, now open to all EVs) |
+| `--dc-fast` | DC fast charging (includes Tesla Superchargers on IONNA network) |
 
-Find nearby Superchargers:
+Find available Superchargers:
 ```bash
-chargepoint nearby --connector-tesla-dc --available-only \
+chargepoint nearby --dc-fast --available-only \
     --sw-lat 30.37 --sw-lon -97.66 --ne-lat 30.40 --ne-lon -97.64
 ```
 
