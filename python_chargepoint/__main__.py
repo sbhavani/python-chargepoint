@@ -184,6 +184,32 @@ async def charging_status(ctx) -> None:
 
 
 # ---------------------------------------------------------------------------
+# stop
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.pass_context
+@async_cmd
+async def stop(ctx) -> None:
+    """Stop the currently active charging session."""
+    client = await _make_client(ctx.obj["debug"])
+    try:
+        status = await client.get_user_charging_status()
+        if status is None:
+            click.echo("No active charging session.")
+            return
+        session = await client.get_charging_session(status.session_id)
+        await session.stop()
+        click.echo("Charging session stopped.")
+    except CommunicationError as e:
+        click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+    finally:
+        await client.close()
+
+
+# ---------------------------------------------------------------------------
 # station
 # ---------------------------------------------------------------------------
 

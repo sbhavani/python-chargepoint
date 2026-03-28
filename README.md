@@ -286,7 +286,9 @@ After installation, a `chargepoint` command is available.
 
 ### Authentication
 
-Credentials are read from environment variables. The CLI falls back to prompting for a password if no token is set.
+Credentials can be provided via environment variables **or** a config file.
+
+**Environment variables:**
 
 ```bash
 export CP_USERNAME="user@example.com"
@@ -295,17 +297,43 @@ export CP_COULOMB_TOKEN="<coulomb_sess cookie value>"
 export CP_SSO_JWT="<sso jwt>"
 ```
 
+**Config file (recommended):**
+
+Create `~/.config/chargepoint/credentials.toml`:
+
+```toml
+[default]
+username = "user@example.com"
+coulomb_token = "<coulomb_sess cookie>"
+
+[work]
+username = "work@company.com"
+coulomb_token = "<work coulomb_sess cookie>"
+```
+
+Use `--profile <name>` to switch between credential sets. The CLI falls back to environment variables if no config file exists.
+
 ### Global options
 
 ```
-chargepoint [--debug] [--json] <command>
+chargepoint [--debug] [--json] [--profile <name>] [--config <path>] <command>
 ```
 
-`--json` dumps the raw API response as JSON — useful for scripting.
+| Option | Description |
+|---|---|
+| `--debug` | Enable debug logging |
+| `--json` | JSON output (useful for scripting) |
+| `--profile <name>` | Use a named credential profile (default: "default") |
+| `--config <path>` | Path to config file (default: `~/.config/chargepoint/credentials.toml`) |
 
 ### Commands
 
 ```bash
+# Quick actions (no ID lookup needed)
+chargepoint stop                 # Stop the currently active session
+chargepoint start <device_id>     # Start charging on a station
+chargepoint session last         # Show the most recent session
+
 # Account
 chargepoint account
 chargepoint vehicles
@@ -316,9 +344,10 @@ chargepoint charging-status
 # Station info
 chargepoint station <device_id>
 
-# Nearby stations
+# Nearby stations (Tesla-compatible filters)
 chargepoint nearby --sw-lat 30.37 --sw-lon -97.66 --ne-lat 30.40 --ne-lon -97.64 \
     [--connector-l2] [--connector-combo] [--connector-chademo] [--connector-tesla] \
+    [--connector-tesla-l2] [--connector-tesla-dc] \
     [--dc-fast] [--available-only] [--free-only]
 
 # Home charger
@@ -329,9 +358,13 @@ chargepoint charger config <charger_id>
 chargepoint charger set-amperage <charger_id> <amps>
 chargepoint charger set-led <charger_id> <level>   # 0=off 1=20% 2=40% 3=60% 4=80% 5=100%
 chargepoint charger restart <charger_id>
-chargepoint charger schedule <charger_id>
-chargepoint charger set-schedule <charger_id> --weekday-start 23:00 --weekday-end 07:00 --weekend-start 19:00 --weekend-end 15:00
-chargepoint charger disable-schedule <charger_id>
+
+# Schedule management
+chargepoint schedule show <charger_id>
+chargepoint schedule set <charger_id> \
+    --weekday-start 23:00 --weekday-end 07:00 \
+    --weekend-start 19:00 --weekend-end 15:00
+chargepoint schedule disable <charger_id>
 
 # Sessions
 chargepoint session get <session_id>
@@ -339,11 +372,28 @@ chargepoint session start <device_id>
 chargepoint session stop <session_id>
 ```
 
+### Tesla Support
+
+The CLI includes filters and shortcuts optimized for Tesla vehicles:
+
+| Filter | Description |
+|---|---|
+| `--connector-tesla` | Tesla proprietary connector |
+| `--connector-tesla-l2` | Tesla Level 2 (NACS) — most non-Tesla EVs use this |
+| `--connector-tesla-dc` | Tesla Supercharger DC (IONNA network, now open to all EVs) |
+
+Find nearby Superchargers:
+```bash
+chargepoint nearby --connector-tesla-dc --available-only \
+    --sw-lat 30.37 --sw-lon -97.66 --ne-lat 30.40 --ne-lon -97.64
+```
+
 Use `--help` on any command or subgroup for details:
 
 ```bash
 chargepoint nearby --help
 chargepoint charger --help
+chargepoint schedule --help
 ```
 
 ---
