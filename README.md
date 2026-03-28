@@ -1,6 +1,13 @@
 # python-chargepoint
 
-A simple, async Pythonic wrapper around the ChargePoint EV Charging Network API.
+ChargePoint's app and web UI don't let you do one thing: **stop your charging session on a schedule**. If you want to cap your charge at 80% or stop at a specific time to avoid peak rates, you're out of luck.
+
+This project is a Python API and CLI for ChargePoint that adds the missing piece: scheduled and automated charging control.
+
+- **Stop charging on a schedule** — e.g., stop at 11 PM or when you hit a target SOC
+- **Control your home charger** — set amperage, LED brightness, schedules
+- **Manage sessions** — start/stop without the app, check status, find nearby stations
+- **Tesla-ready** — filter for Tesla Superchargers (IONNA network), NACS, and CCS
 
 ## Disclaimer
 
@@ -282,9 +289,29 @@ for s in stations:
 
 ## CLI
 
-After installation, a `chargepoint` command is available.
+A `chargepoint` command is installed automatically.
 
-### Authentication
+### Stop charging right now
+
+```bash
+chargepoint stop
+```
+
+That's it — no app, no session ID to look up. It finds your active session and stops it.
+
+### Stop charging on a schedule
+
+Pair with cron or systemd timers to stop at a specific time or state-of-charge:
+
+```bash
+# Stop at 11 PM
+0 23 * * * chargepoint stop
+
+# Or with a config file at ~/.config/chargepoint/credentials.toml
+0 6 * * * chargepoint --profile work stop
+```
+
+### Other commands
 
 Credentials can be provided via environment variables **or** a config file.
 
@@ -400,13 +427,15 @@ chargepoint schedule --help
 
 ## Development
 
+Contributions welcome. The CLI is built with [Click](https://click.palletsprojects.com/) and the API wrapper is pure async Python.
+
 ### Setup
 
 ```bash
-git clone https://github.com/mbillow/python-chargepoint.git
+git clone https://github.com/sbhavani/python-chargepoint.git
 cd python-chargepoint
-poetry install
-poetry run pre-commit install
+uv sync
+uv run pre-commit install
 ```
 
 ### Checks
@@ -438,5 +467,5 @@ poetry run pyright python_chargepoint/
 ### Tests
 
 ```bash
-poetry run pytest
+uv run pytest
 ```
