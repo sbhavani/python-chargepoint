@@ -6,7 +6,7 @@ ChargePoint's app won't let you set a stop time. NightCharge is the CLI that clo
 
 [![CI](https://github.com/sbhavani/nightcharge/actions/workflows/ci.yml/badge.svg)](https://github.com/sbhavani/nightcharge/actions/workflows/ci.yml)
 [![Security](https://github.com/sbhavani/nightcharge/actions/workflows/security.yml/badge.svg)](https://github.com/sbhavani/nightcharge/actions/workflows/security.yml)
-[![Python](https://img.shields.io/badge/python-3.14-blue)](https://github.com/sbhavani/nightcharge)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/sbhavani/nightcharge)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/sbhavani/nightcharge/actions/workflows/ci.yml)
 
 ## Install
@@ -180,7 +180,7 @@ uv run pre-commit install
 uv run pytest
 ```
 
-Requires Python 3.14.
+Requires Python 3.10+.
 
 ### Checks
 
