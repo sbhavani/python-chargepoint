@@ -18,7 +18,7 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - run: uv sync --dev
+      - run: uv sync --all-extras
 
       - name: black
         run: uv run black --check nightcharge/ tests/
@@ -47,7 +47,7 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - run: uv sync --dev
+      - run: uv sync --all-extras
 
       - name: pytest
         run: uv run pytest --cov=nightcharge --cov-fail-under=90
