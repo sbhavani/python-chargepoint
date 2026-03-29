@@ -19,19 +19,19 @@ jobs:
       - run: uv sync --dev
 
       - name: black
-        run: uv tool run black --check nightcharge/ tests/
+        run: .venv/bin/black --check nightcharge/ tests/
 
       - name: flake8
-        run: uv tool run flake8 nightcharge/ tests/
+        run: .venv/bin/flake8 nightcharge/ tests/
 
       - name: mypy
-        run: uv tool run mypy nightcharge/
+        run: .venv/bin/mypy nightcharge/
 
       - name: pyright
-        run: uv tool run pyright nightcharge/
+        run: .venv/bin/pyright nightcharge/
 
       - name: pip-audit
-        run: uv tool run pip-audit --strict --ignore-vuln CVE-2026-4539 --skip-editable
+        run: .venv/bin/pip-audit --strict --ignore-vuln CVE-2026-4539 --skip-editable
 
   test:
     runs-on: ubuntu-latest
@@ -46,7 +46,7 @@ jobs:
       - run: uv sync --dev
 
       - name: pytest
-        run: uv run pytest --cov=nightcharge --cov-fail-under=90
+        run: .venv/bin/pytest --cov=nightcharge --cov-fail-under=90
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
