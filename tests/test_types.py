@@ -1,5 +1,5 @@
 from datetime import datetime
-from python_chargepoint.types import (
+from nightcharge.types import (
     ElectricVehicle,
     Account,
     HomeChargerStatus,

@@ -21,16 +21,16 @@ jobs:
           UV_LINK_MODE: copy
 
       - name: black
-        run: uv run black --check python_chargepoint/ tests/
+        run: uv run black --check nightcharge/ tests/
 
       - name: flake8
-        run: uv run flake8 python_chargepoint/ tests/
+        run: uv run flake8 nightcharge/ tests/
 
       - name: mypy
-        run: uv run mypy python_chargepoint/
+        run: uv run mypy nightcharge/
 
       - name: pyright
-        run: uv run pyright python_chargepoint/
+        run: uv run pyright nightcharge/
 
   test:
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
           UV_LINK_MODE: copy
 
       - name: pytest
-        run: uv run pytest --cov=python_chargepoint --cov-fail-under=90
+        run: uv run pytest --cov=nightcharge --cov-fail-under=90
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4

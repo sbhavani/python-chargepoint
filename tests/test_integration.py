@@ -25,9 +25,9 @@ import dotenv
 import pytest
 from click.testing import CliRunner
 
-from python_chargepoint import ChargePoint
-from python_chargepoint.__main__ import cli
-from python_chargepoint.exceptions import DatadomeCaptcha, LoginError
+from nightcharge import ChargePoint
+from nightcharge.__main__ import cli
+from nightcharge.exceptions import DatadomeCaptcha, LoginError
 
 # Load .env if present
 dotenv.load_dotenv()

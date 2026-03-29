@@ -4,10 +4,10 @@ from typing import Optional
 
 import pytest
 
-from python_chargepoint import ChargePoint
-from python_chargepoint.global_config import GlobalConfiguration
-from python_chargepoint.session import ChargingSession, _send_command
-from python_chargepoint.exceptions import CommunicationError, APIError
+from nightcharge import ChargePoint
+from nightcharge.global_config import GlobalConfiguration
+from nightcharge.session import ChargingSession, _send_command
+from nightcharge.exceptions import CommunicationError, APIError
 
 
 def _add_start_function_responses(

@@ -1,6 +1,6 @@
 from yarl import URL
 
-from python_chargepoint.global_config import GlobalConfiguration
+from nightcharge.global_config import GlobalConfiguration
 
 
 def test_global_configuration(global_config_json: dict):

@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 import pytest
 from aioresponses import aioresponses as _aioresponses
 
-from python_chargepoint import ChargePoint
-from python_chargepoint.global_config import GlobalConfiguration
-from python_chargepoint.constants import DISCOVERY_API
+from nightcharge import ChargePoint
+from nightcharge.global_config import GlobalConfiguration
+from nightcharge.constants import DISCOVERY_API
 
 
 @pytest.fixture

@@ -2,10 +2,10 @@ import logging
 
 import pytest
 
-from python_chargepoint import ChargePoint
-from python_chargepoint.global_config import GlobalConfiguration
-from python_chargepoint.constants import DISCOVERY_API
-from python_chargepoint.exceptions import (
+from nightcharge import ChargePoint
+from nightcharge.global_config import GlobalConfiguration
+from nightcharge.constants import DISCOVERY_API
+from nightcharge.exceptions import (
     LoginError,
     CommunicationError,
     DatadomeCaptcha,
@@ -713,7 +713,7 @@ async def test_client_get_station_failure(
 async def test_client_get_nearby_stations(
     aioresponses, authenticated_client: ChargePoint, nearby_stations_json: dict
 ):
-    from python_chargepoint.global_config import ZoomBounds
+    from nightcharge.global_config import ZoomBounds
 
     aioresponses.post(
         authenticated_client.global_config.endpoints.mapcache_endpoint / "v2",
@@ -740,8 +740,8 @@ async def test_client_get_nearby_stations(
 async def test_client_get_nearby_stations_with_filter(
     aioresponses, authenticated_client: ChargePoint, nearby_stations_json: dict
 ):
-    from python_chargepoint.global_config import ZoomBounds
-    from python_chargepoint.types import MapFilter
+    from nightcharge.global_config import ZoomBounds
+    from nightcharge.types import MapFilter
 
     aioresponses.post(
         authenticated_client.global_config.endpoints.mapcache_endpoint / "v2",
@@ -758,7 +758,7 @@ async def test_client_get_nearby_stations_with_filter(
 async def test_client_get_nearby_stations_failure(
     aioresponses, authenticated_client: ChargePoint
 ):
-    from python_chargepoint.global_config import ZoomBounds
+    from nightcharge.global_config import ZoomBounds
 
     aioresponses.post(
         authenticated_client.global_config.endpoints.mapcache_endpoint / "v2",
@@ -988,7 +988,7 @@ async def test_request_403_non_json(
     aioresponses, authenticated_client: ChargePoint
 ):
     """_request should handle a 403 with non-JSON body gracefully (Datadome try/except)."""
-    from python_chargepoint.global_config import ZoomBounds
+    from nightcharge.global_config import ZoomBounds
 
     aioresponses.post(
         authenticated_client.global_config.endpoints.mapcache_endpoint / "v2",
