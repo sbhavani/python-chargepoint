@@ -5,7 +5,8 @@
 ChargePoint's app won't let you set a stop time. NightCharge is the CLI that closes that gap — stop your session at 11 PM, cap it at 80%, or pair it with your utility's off-peak hours. The thing ChargePoint forgot to build.
 
 [![CI](https://github.com/sbhavani/nightcharge/actions/workflows/ci.yml/badge.svg)](https://github.com/sbhavani/nightcharge/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/sbhavani/nightcharge)
+[![Security](https://github.com/sbhavani/nightcharge/actions/workflows/security.yml/badge.svg)](https://github.com/sbhavani/nightcharge/actions/workflows/security.yml)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://github.com/sbhavani/nightcharge)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)](https://github.com/sbhavani/nightcharge/actions/workflows/ci.yml)
 
 ## Install
@@ -179,6 +180,8 @@ uv run pre-commit install
 uv run pytest
 ```
 
+Requires Python 3.12.
+
 ### Checks
 
 ```bash
@@ -186,6 +189,7 @@ uv run black --check nightcharge/ tests/
 uv run flake8 nightcharge/ tests/
 uv run mypy nightcharge/
 uv run pyright nightcharge/
+uv run tox -e pip-audit
 ```
 
 ## Disclaimer

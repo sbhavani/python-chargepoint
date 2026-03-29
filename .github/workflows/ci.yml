@@ -21,32 +21,28 @@ jobs:
           UV_LINK_MODE: copy
 
       - name: black
-        run: uv run black --check nightcharge/ tests/
+        run: uv tool run black --check nightcharge/ tests/
 
       - name: flake8
-        run: uv run flake8 nightcharge/ tests/
+        run: uv tool run flake8 nightcharge/ tests/
 
       - name: mypy
-        run: uv run mypy nightcharge/
+        run: uv tool run mypy nightcharge/
 
       - name: pyright
-        run: uv run pyright nightcharge/
+        run: uv tool run pyright nightcharge/
 
       - name: pip-audit
-        run: uv run pip-audit --strict --ignore-vuln CVE-2026-4539 --skip-editable
+        run: uv tool run pip-audit --strict --ignore-vuln CVE-2026-4539 --skip-editable
 
   test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           enable-cache: true
 
       - run: uv sync --dev
@@ -54,11 +50,10 @@ jobs:
           UV_LINK_MODE: copy
 
       - name: pytest
-        run: uv run pytest --cov=nightcharge --cov-fail-under=90
+        run: uv tool run pytest --cov=nightcharge --cov-fail-under=90
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.12'
         with:
           name: coverage
           path: coverage.xml
