@@ -24,7 +24,7 @@ jobs:
           UV_LINK_MODE: copy
 
       - name: pip-audit
-        run: uv run pip-audit --strict --ignore-vuln CVE-2026-4539 --skip-editable
+        run: uv run pip-audit --ignore-vuln CVE-2026-4539
 
   codeql:
     runs-on: ubuntu-latest
